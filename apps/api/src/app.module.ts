@@ -10,7 +10,7 @@ import { BranchesModule } from "./modules/branches/branches.module.js";
 import { RoomTypesModule } from './modules/room-types/room-types.module';
 import { RoomsModule } from "./modules/rooms/rooms.module.js";
 import { PricingModule } from "./modules/pricing/pricing.module.js";
-
+import { InventoryModule } from "./modules/inventory/inventory.module.js";
 
 @Module({
   imports: [
@@ -27,6 +27,7 @@ import { PricingModule } from "./modules/pricing/pricing.module.js";
     RoomTypesModule,
     RoomsModule,
     PricingModule,
+    InventoryModule,
   ],
 })
 export class AppModule {}

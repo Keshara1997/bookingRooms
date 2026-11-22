@@ -1,9 +1,12 @@
+
 import {
   Body,
   Controller,
   Delete,
   Get,
   Param,
+  ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -13,12 +16,16 @@ import {
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard.js";
 import { TenantGuard } from "../../common/guards/tenant.guard.js";
 import { RolesGuard } from "../../common/guards/roles.guard.js";
+
 import { CurrentTenant } from "../../common/decorators/current-tenant.decorator.js";
 import { Roles } from "../../common/decorators/roles.decorator.js";
+
+import { MembershipRole } from "../../generated/prisma/enums.js";
 
 import { CreateRatePlanDto } from "./dto/create-rate-plan.dto.js";
 import { UpdateRatePlanDto } from "./dto/update-rate-plan.dto.js";
 import { QueryRatePlansDto } from "./dto/query-rate-plans.dto.js";
+
 import { CreateDailyRateDto } from "./dto/create-daily-rate.dto.js";
 import { UpdateDailyRateDto } from "./dto/update-daily-rate.dto.js";
 import { QueryDailyRatesDto } from "./dto/query-daily-rates.dto.js";
@@ -26,16 +33,6 @@ import { QueryDailyRatesDto } from "./dto/query-daily-rates.dto.js";
 import { PricingService } from "./pricing.service.js";
 import { DailyRatesService } from "./daily-rates.service.js";
 import { PricingCalculatorService } from "./pricing-calculator.service.js";
-
-const PRICING_MANAGE_ROLES = ["OWNER", "ADMIN", "HOTEL_MANAGER"] as const;
-
-const PRICING_READ_ROLES = [
-  "OWNER",
-  "ADMIN",
-  "HOTEL_MANAGER",
-  "RECEPTIONIST",
-  "ACCOUNTANT",
-] as const;
 
 @Controller()
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
@@ -46,8 +43,12 @@ export class PricingController {
     private readonly pricingCalculatorService: PricingCalculatorService,
   ) {}
 
+  // =========================================================
+  // RATE PLANS
+  // =========================================================
+
   @Post("room-types/:roomTypeId/rate-plans")
-  @Roles(...PRICING_MANAGE_ROLES)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.HOTEL_MANAGER)
   createRatePlan(
     @CurrentTenant() tenantId: string,
     @Param("roomTypeId") roomTypeId: string,
@@ -57,7 +58,12 @@ export class PricingController {
   }
 
   @Get("room-types/:roomTypeId/rate-plans")
-  @Roles(...PRICING_READ_ROLES)
+  @Roles(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.HOTEL_MANAGER,
+    MembershipRole.ACCOUNTANT,
+  )
   findRatePlans(
     @CurrentTenant() tenantId: string,
     @Param("roomTypeId") roomTypeId: string,
@@ -67,7 +73,12 @@ export class PricingController {
   }
 
   @Get("rate-plans/:ratePlanId")
-  @Roles(...PRICING_READ_ROLES)
+  @Roles(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.HOTEL_MANAGER,
+    MembershipRole.ACCOUNTANT,
+  )
   findRatePlan(
     @CurrentTenant() tenantId: string,
     @Param("ratePlanId") ratePlanId: string,
@@ -76,7 +87,7 @@ export class PricingController {
   }
 
   @Patch("rate-plans/:ratePlanId")
-  @Roles(...PRICING_MANAGE_ROLES)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.HOTEL_MANAGER)
   updateRatePlan(
     @CurrentTenant() tenantId: string,
     @Param("ratePlanId") ratePlanId: string,
@@ -86,7 +97,7 @@ export class PricingController {
   }
 
   @Delete("rate-plans/:ratePlanId")
-  @Roles(...PRICING_MANAGE_ROLES)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.HOTEL_MANAGER)
   archiveRatePlan(
     @CurrentTenant() tenantId: string,
     @Param("ratePlanId") ratePlanId: string,
@@ -94,8 +105,12 @@ export class PricingController {
     return this.pricingService.archive(tenantId, ratePlanId);
   }
 
+  // =========================================================
+  // DAILY RATES
+  // =========================================================
+
   @Post("rate-plans/:ratePlanId/daily-rates")
-  @Roles(...PRICING_MANAGE_ROLES)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.HOTEL_MANAGER)
   createDailyRate(
     @CurrentTenant() tenantId: string,
     @Param("ratePlanId") ratePlanId: string,
@@ -105,7 +120,12 @@ export class PricingController {
   }
 
   @Get("rate-plans/:ratePlanId/daily-rates")
-  @Roles(...PRICING_READ_ROLES)
+  @Roles(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.HOTEL_MANAGER,
+    MembershipRole.ACCOUNTANT,
+  )
   findDailyRates(
     @CurrentTenant() tenantId: string,
     @Param("ratePlanId") ratePlanId: string,
@@ -115,7 +135,12 @@ export class PricingController {
   }
 
   @Get("rate-plans/:ratePlanId/daily-rates/:dailyRateId")
-  @Roles(...PRICING_READ_ROLES)
+  @Roles(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.HOTEL_MANAGER,
+    MembershipRole.ACCOUNTANT,
+  )
   findDailyRate(
     @CurrentTenant() tenantId: string,
     @Param("ratePlanId") ratePlanId: string,
@@ -129,7 +154,7 @@ export class PricingController {
   }
 
   @Patch("rate-plans/:ratePlanId/daily-rates/:dailyRateId")
-  @Roles(...PRICING_MANAGE_ROLES)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.HOTEL_MANAGER)
   updateDailyRate(
     @CurrentTenant() tenantId: string,
     @Param("ratePlanId") ratePlanId: string,
@@ -145,7 +170,7 @@ export class PricingController {
   }
 
   @Delete("rate-plans/:ratePlanId/daily-rates/:dailyRateId")
-  @Roles(...PRICING_MANAGE_ROLES)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.HOTEL_MANAGER)
   deleteDailyRate(
     @CurrentTenant() tenantId: string,
     @Param("ratePlanId") ratePlanId: string,
@@ -158,8 +183,17 @@ export class PricingController {
     );
   }
 
+  // =========================================================
+  // PRICE CALCULATION
+  // =========================================================
+
   @Get("rate-plans/:ratePlanId/calculate")
-  @Roles(...PRICING_READ_ROLES)
+  @Roles(
+    MembershipRole.OWNER,
+    MembershipRole.ADMIN,
+    MembershipRole.HOTEL_MANAGER,
+    MembershipRole.ACCOUNTANT,
+  )
   calculatePrice(
     @CurrentTenant() tenantId: string,
     @Param("ratePlanId") ratePlanId: string,

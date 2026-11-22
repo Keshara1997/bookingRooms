@@ -48,6 +48,19 @@ enum RoomStatus {
   OUT_OF_SERVICE
 }
 
+enum RoomBlockReason {
+  MAINTENANCE
+  REPAIR
+  OUT_OF_SERVICE
+  MANAGEMENT_USE
+  OTHER
+}
+
+enum RoomBlockStatus {
+  ACTIVE
+  CANCELLED
+}
+
 enum ReservationStatus {
   PENDING
   CONFIRMED
@@ -132,8 +145,13 @@ model Tenant {
   housekeepingTasks HousekeepingTask[]
   auditLogs         AuditLog[]
 
+  // Pricing
   ratePlans  RatePlan[]
   dailyRates DailyRate[]
+
+  // Inventory
+  roomInventories RoomInventory[]
+  roomBlocks      RoomBlock[]
 
   @@index([status])
   @@map("tenants")
@@ -208,7 +226,12 @@ model Hotel {
   branches     Branch[]
   roomTypes    RoomType[]
   reservations Reservation[]
-  ratePlans    RatePlan[]
+
+  // Pricing
+  ratePlans RatePlan[]
+
+  // Inventory
+  roomInventories RoomInventory[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -234,6 +257,9 @@ model Branch {
   hotel        Hotel         @relation(fields: [hotelId], references: [id], onDelete: Restrict)
   rooms        Room[]
   reservations Reservation[]
+
+  // Inventory
+  roomInventories RoomInventory[]
 
   @@unique([hotelId, code])
   @@index([tenantId, hotelId])
@@ -264,7 +290,12 @@ model RoomType {
   rooms            Room[]
   reservationRooms ReservationRoom[]
   amenities        RoomTypeAmenity[]
-  ratePlans        RatePlan[]
+
+  // Pricing
+  ratePlans RatePlan[]
+
+  // Inventory
+  roomInventories RoomInventory[]
 
   @@unique([hotelId, code])
   @@index([tenantId, hotelId])
@@ -289,10 +320,73 @@ model Room {
   reservationRooms  ReservationRoom[]
   housekeepingTasks HousekeepingTask[]
 
+  // Inventory blocking
+  roomBlocks RoomBlock[]
+
   @@unique([branchId, roomNumber])
   @@index([tenantId, status])
   @@index([branchId, status])
   @@map("rooms")
+}
+
+// ============================================
+// ROOM INVENTORY
+// ============================================
+
+model RoomInventory {
+  id         String @id @default(cuid())
+  tenantId   String
+  hotelId    String
+  branchId   String
+  roomTypeId String
+
+  date DateTime @db.Date
+
+  totalRooms    Int @default(0)
+  reservedRooms Int @default(0)
+  blockedRooms  Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  hotel    Hotel    @relation(fields: [hotelId], references: [id], onDelete: Restrict)
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  roomType RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
+
+  @@unique([branchId, roomTypeId, date])
+  @@index([tenantId, date])
+  @@index([hotelId, date])
+  @@index([roomTypeId, date])
+  @@map("room_inventories")
+}
+
+// ============================================
+// ROOM BLOCKS
+// ============================================
+
+model RoomBlock {
+  id       String @id @default(cuid())
+  tenantId String
+  roomId   String
+
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+
+  reason RoomBlockReason @default(MAINTENANCE)
+  status RoomBlockStatus @default(ACTIVE)
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status])
+  @@index([roomId, startDate, endDate])
+  @@map("room_blocks")
 }
 
 // ============================================
@@ -309,10 +403,10 @@ model RatePlan {
   code        String
   description String? @db.Text
 
-  mealPlan                   MealPlan           @default(ROOM_ONLY)
-  cancellationPolicy         CancellationPolicy @default(FLEXIBLE)
-  cancellationDeadlineHours  Int?
-  cancellationFeePercent     Decimal            @default(0) @db.Decimal(5, 2)
+  mealPlan                  MealPlan           @default(ROOM_ONLY)
+  cancellationPolicy        CancellationPolicy @default(FLEXIBLE)
+  cancellationDeadlineHours Int?
+  cancellationFeePercent    Decimal            @default(0) @db.Decimal(5, 2)
 
   minStayNights Int     @default(1)
   maxStayNights Int?
