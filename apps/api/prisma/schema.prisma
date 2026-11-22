@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -88,6 +89,21 @@ enum HousekeepingStatus {
   CANCELLED
 }
 
+enum MealPlan {
+  ROOM_ONLY
+  BREAKFAST
+  HALF_BOARD
+  FULL_BOARD
+  ALL_INCLUSIVE
+}
+
+enum CancellationPolicy {
+  FLEXIBLE
+  MODERATE
+  STRICT
+  NON_REFUNDABLE
+}
+
 // ============================================
 // TENANT
 // ============================================
@@ -116,6 +132,9 @@ model Tenant {
   housekeepingTasks HousekeepingTask[]
   auditLogs         AuditLog[]
 
+  ratePlans  RatePlan[]
+  dailyRates DailyRate[]
+
   @@index([status])
   @@map("tenants")
 }
@@ -123,6 +142,7 @@ model Tenant {
 // ============================================
 // USERS AND TENANT MEMBERSHIPS
 // ============================================
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -188,6 +208,7 @@ model Hotel {
   branches     Branch[]
   roomTypes    RoomType[]
   reservations Reservation[]
+  ratePlans    RatePlan[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -243,6 +264,7 @@ model RoomType {
   rooms            Room[]
   reservationRooms ReservationRoom[]
   amenities        RoomTypeAmenity[]
+  ratePlans        RatePlan[]
 
   @@unique([hotelId, code])
   @@index([tenantId, hotelId])
@@ -271,6 +293,76 @@ model Room {
   @@index([tenantId, status])
   @@index([branchId, status])
   @@map("rooms")
+}
+
+// ============================================
+// RATE PLANS
+// ============================================
+
+model RatePlan {
+  id          String  @id @default(cuid())
+  tenantId    String
+  hotelId     String
+  roomTypeId  String
+
+  name        String
+  code        String
+  description String? @db.Text
+
+  mealPlan                   MealPlan           @default(ROOM_ONLY)
+  cancellationPolicy         CancellationPolicy @default(FLEXIBLE)
+  cancellationDeadlineHours  Int?
+  cancellationFeePercent     Decimal            @default(0) @db.Decimal(5, 2)
+
+  minStayNights Int     @default(1)
+  maxStayNights Int?
+  isRefundable  Boolean @default(true)
+  isActive      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  hotel    Hotel    @relation(fields: [hotelId], references: [id], onDelete: Restrict)
+  roomType RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
+
+  dailyRates       DailyRate[]
+  reservationRooms ReservationRoom[]
+
+  @@unique([hotelId, roomTypeId, code])
+  @@index([tenantId, hotelId, roomTypeId, isActive])
+  @@map("rate_plans")
+}
+
+// ============================================
+// DAILY RATES
+// ============================================
+
+model DailyRate {
+  id         String   @id @default(cuid())
+  tenantId   String
+  ratePlanId String
+
+  date  DateTime @db.Date
+  price Decimal  @db.Decimal(12, 2)
+
+  minStayNights Int?
+  maxStayNights Int?
+
+  isClosed          Boolean @default(false)
+  closedToArrival   Boolean @default(false)
+  closedToDeparture Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ratePlan RatePlan @relation(fields: [ratePlanId], references: [id], onDelete: Cascade)
+
+  @@unique([ratePlanId, date])
+  @@index([tenantId, date])
+  @@index([ratePlanId, date])
+  @@map("daily_rates")
 }
 
 // ============================================
@@ -344,16 +436,20 @@ model ReservationRoom {
   reservationId String
   roomTypeId    String
   roomId        String?
+  ratePlanId    String?
   nightlyRate   Decimal  @db.Decimal(12, 2)
-  createdAt     DateTime @default(now())
+
+  createdAt DateTime @default(now())
 
   tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
   roomType    RoomType    @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
   room        Room?       @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  ratePlan    RatePlan?   @relation(fields: [ratePlanId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, reservationId])
   @@index([roomId])
+  @@index([ratePlanId])
   @@map("reservation_rooms")
 }
 
@@ -465,9 +561,9 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// ==============
-// AuthSession 
-// ==============
+// ============================================
+// AUTH SESSIONS
+// ============================================
 
 model AuthSession {
   id         String    @id @default(cuid())
