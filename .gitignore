@@ -16,6 +16,11 @@ coverage/
 **/.env.*
 !**/.env.example
 
+# API
+**/apps/api/.env
+**/apps/api/.env.*
+!**/apps/api/.env.example
+
 # Logs
 *.log
 npm-debug.log*
