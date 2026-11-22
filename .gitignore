@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+.next/
+dist/
+build/
+coverage/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Testing
+playwright-report/
+test-results/
+
+# Prisma
+apps/api/src/generated/
+EOF

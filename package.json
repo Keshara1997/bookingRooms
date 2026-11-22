@@ -1,0 +1,17 @@
+{
+  "name": "bookingrooms",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Independent multi-tenant hotel management and booking platform",
+  "scripts": {
+    "dev:web": "npm --prefix apps/web run dev -- --port 3001",
+    "dev:api": "npm --prefix apps/api run start:dev",
+    "build:web": "npm --prefix apps/web run build",
+    "build:api": "npm --prefix apps/api run build",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f",
+    "infra:status": "docker compose ps"
+  },
+  "type": "module"
+}
