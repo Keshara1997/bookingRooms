@@ -7,6 +7,8 @@ import { AuthModule } from "./modules/auth/auth.module.js";
 import { TenantsModule } from "./modules/tenants/tenants.module.js";
 import { HotelsModule } from "./modules/hotels/hotels.module.js";
 import { BranchesModule } from "./modules/branches/branches.module.js";
+import { RoomTypesModule } from './modules/room-types/room-types.module';
+
 
 @Module({
   imports: [
@@ -20,6 +22,7 @@ import { BranchesModule } from "./modules/branches/branches.module.js";
     TenantsModule,
     HotelsModule,
     BranchesModule,
+    RoomTypesModule
   ],
 })
 export class AppModule {}
