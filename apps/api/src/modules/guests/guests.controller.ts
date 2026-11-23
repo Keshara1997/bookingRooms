@@ -163,11 +163,11 @@ import {
     @Post()
     @Roles("OWNER", "ADMIN", "HOTEL_MANAGER", "RECEPTIONIST")
     create(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Body() dto: CreateGuestDto,
     ) {
       return this.guestsService.create(
-        tenant.id,
+        tenantId,
         dto,
       );
     }
@@ -186,11 +186,11 @@ import {
       "ACCOUNTANT",
     )
     findAll(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Query() filters: SearchGuestsDto,
     ) {
       return this.guestsService.findAll(
-        tenant.id,
+        tenantId,
         filters.search,
         filters.page,
         filters.limit,
@@ -211,11 +211,11 @@ import {
       "ACCOUNTANT",
     )
     findOne(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Param("guestId") guestId: string,
     ) {
       return this.guestsService.findOne(
-        tenant.id,
+        tenantId,
         guestId,
       );
     }
@@ -228,12 +228,12 @@ import {
     @Patch(":guestId")
     @Roles("OWNER", "ADMIN", "HOTEL_MANAGER", "RECEPTIONIST")
     update(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Param("guestId") guestId: string,
       @Body() dto: UpdateGuestDto,
     ) {
       return this.guestsService.update(
-        tenant.id,
+        tenantId,
         guestId,
         dto,
       );
@@ -253,11 +253,11 @@ import {
       "ACCOUNTANT",
     )
     getReservationHistory(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Param("guestId") guestId: string,
     ) {
       return this.guestsService.getReservationHistory(
-        tenant.id,
+        tenantId,
         guestId,
       );
     }

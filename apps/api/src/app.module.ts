@@ -14,6 +14,9 @@ import { PricingModule } from "./modules/pricing/pricing.module.js";
 import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { ReservationsModule } from "./modules/reservations/reservations.module.js";
 import { GuestsModule } from "./modules/guests/guests.module.js";
+import { PaymentsModule } from "./modules/payments/payments.module.js";
+import { AmenitiesModule } from "./modules/amenities/amenities.module.js";
+
 
 
 @Module({
@@ -35,6 +38,8 @@ import { GuestsModule } from "./modules/guests/guests.module.js";
     InventoryModule,
     ReservationsModule,
     GuestsModule,
-  ],
+    PaymentsModule,
+    AmenitiesModule,
+    ],
 })
 export class AppModule {}

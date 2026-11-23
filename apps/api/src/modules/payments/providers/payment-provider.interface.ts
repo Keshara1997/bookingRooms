@@ -7,14 +7,22 @@ export type ExternalPaymentStatus =
   | "COMPLETED"
   | "FAILED";
 
+export interface ProviderCustomer {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  country: string;
+}
+
 export interface CreateProviderPaymentInput {
   paymentId: string;
   reservationId: string;
   amount: number;
   currency: string;
-  customerName: string;
-  customerEmail?: string;
-  customerPhone?: string;
+  customer: ProviderCustomer;
   returnUrl: string;
   cancelUrl: string;
   notifyUrl: string;
@@ -34,6 +42,7 @@ export interface VerifyProviderPaymentInput {
   amount?: number;
   currency?: string;
   signature?: string;
+  rawBody?: string;
   rawPayload?: Record<string, unknown>;
 }
 
@@ -49,7 +58,7 @@ export interface VerifyProviderPaymentResult {
 export interface RefundProviderPaymentInput {
   paymentId: string;
   transactionId: string;
-  amount: number;
+  amount?: number;
   currency: string;
   reason?: string;
 }
@@ -79,3 +88,7 @@ export interface PaymentProvider {
     input: RefundProviderPaymentInput,
   ): Promise<RefundProviderPaymentResult>;
 }
+
+
+
+export const PAYMENT_PROVIDERS = "PAYMENT_PROVIDERS";

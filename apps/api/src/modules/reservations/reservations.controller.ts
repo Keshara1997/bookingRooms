@@ -42,12 +42,12 @@ import {
     @Post("branches/:branchId/reservations")
     @Roles("OWNER", "ADMIN", "HOTEL_MANAGER", "RECEPTIONIST")
     create(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Param("branchId") branchId: string,
       @Body() dto: CreateReservationDto,
     ) {
       return this.reservationsService.create(
-        tenant.id,
+        tenantId,
         branchId,
         dto,
       );
@@ -67,12 +67,12 @@ import {
       "ACCOUNTANT",
     )
     findAll(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Param("branchId") branchId: string,
       @Query() filters: SearchReservationsDto,
     ) {
       return this.reservationsService.findAll(
-        tenant.id,
+        tenantId,
         branchId,
         filters,
       );
@@ -92,11 +92,11 @@ import {
       "ACCOUNTANT",
     )
     findOne(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Param("reservationId") reservationId: string,
     ) {
       return this.reservationsService.findOne(
-        tenant.id,
+        tenantId,
         reservationId,
       );
     }
@@ -109,12 +109,12 @@ import {
     @Patch("reservations/:reservationId")
     @Roles("OWNER", "ADMIN", "HOTEL_MANAGER", "RECEPTIONIST")
     update(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Param("reservationId") reservationId: string,
       @Body() dto: UpdateReservationDto,
     ) {
       return this.reservationsService.update(
-        tenant.id,
+        tenantId,
         reservationId,
         dto,
       );
@@ -128,11 +128,11 @@ import {
     @Post("reservations/:reservationId/confirm")
     @Roles("OWNER", "ADMIN", "HOTEL_MANAGER", "RECEPTIONIST")
     confirm(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Param("reservationId") reservationId: string,
     ) {
       return this.reservationsService.confirm(
-        tenant.id,
+        tenantId,
         reservationId,
       );
     }
@@ -146,11 +146,11 @@ import {
   @Post("reservations/:reservationId/check-in")
   @Roles("OWNER", "ADMIN", "HOTEL_MANAGER", "RECEPTIONIST")
   checkIn(
-    @CurrentTenant() tenant: { id: string },
+    @CurrentTenant() tenantId: string,
     @Param("reservationId") reservationId: string,
   ) {
     return this.reservationsService.checkIn(
-      tenant.id,
+      tenantId,
       reservationId,
     );
   }
@@ -163,11 +163,11 @@ import {
   @Post("reservations/:reservationId/check-out")
   @Roles("OWNER", "ADMIN", "HOTEL_MANAGER", "RECEPTIONIST")
   checkOut(
-    @CurrentTenant() tenant: { id: string },
+    @CurrentTenant() tenantId: string,
     @Param("reservationId") reservationId: string,
   ) {
     return this.reservationsService.checkOut(
-      tenant.id,
+      tenantId,
       reservationId,
     );
   }
@@ -180,11 +180,11 @@ import {
   @Post("reservations/:reservationId/no-show")
   @Roles("OWNER", "ADMIN", "HOTEL_MANAGER", "RECEPTIONIST")
   markNoShow(
-    @CurrentTenant() tenant: { id: string },
+    @CurrentTenant() tenantId: string,
     @Param("reservationId") reservationId: string,
   ) {
     return this.reservationsService.markNoShow(
-      tenant.id,
+      tenantId,
       reservationId,
     );
   }
@@ -198,11 +198,11 @@ import {
     @Post("reservations/:reservationId/cancel")
     @Roles("OWNER", "ADMIN", "HOTEL_MANAGER", "RECEPTIONIST")
     cancel(
-      @CurrentTenant() tenant: { id: string },
+      @CurrentTenant() tenantId: string,
       @Param("reservationId") reservationId: string,
     ) {
       return this.reservationsService.cancel(
-        tenant.id,
+        tenantId,
         reservationId,
       );
     }
