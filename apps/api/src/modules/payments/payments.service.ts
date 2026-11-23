@@ -41,6 +41,7 @@ import {
   import { Inject } from "@nestjs/common";
   
   import { PrismaService } from "../../database/prisma.service.js";
+  import { InvoicesService } from "../invoices/invoices.service.js";
   
   // ============================================
   // PAYMENT INPUT
@@ -64,7 +65,22 @@ import {
       private readonly prisma: PrismaService,
       @Inject(PAYMENT_PROVIDERS)
       private readonly paymentProviders: PaymentProvider[],
+      private readonly invoicesService: InvoicesService,
     ) {}
+
+    private async syncReservationInvoices(
+      tenantId: string,
+      reservationId: string,
+    ) {
+      try {
+        await this.invoicesService.syncInvoicesForReservation(
+          tenantId,
+          reservationId,
+        );
+      } catch {
+        // Payment must succeed even if invoice sync fails.
+      }
+    }
   
 
 
@@ -277,6 +293,13 @@ import {
         },
       });
 
+      if (newStatus === PaymentStatus.COMPLETED) {
+        await this.syncReservationInvoices(
+          payment.tenantId,
+          payment.reservationId,
+        );
+      }
+
       return {
         received: true,
         alreadyProcessed: false,
@@ -451,6 +474,13 @@ async handlePayHereNotification(
           : `PayHere notification received with status ${verification.status}.`,
     },
   });
+
+  if (status === PaymentStatus.COMPLETED) {
+    await this.syncReservationInvoices(
+      payment.tenantId,
+      payment.reservationId,
+    );
+  }
 
   return {
     received: true,
@@ -906,7 +936,7 @@ async createOnlineCheckout(
       paymentId: string,
       transactionId?: string,
     ) {
-      return this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         const payment = await tx.payment.findFirst({
           where: {
             id: paymentId,
@@ -945,7 +975,7 @@ async createOnlineCheckout(
           }
         }
   
-        return tx.payment.update({
+        const updated = await tx.payment.update({
           where: {
             id: paymentId,
           },
@@ -958,7 +988,16 @@ async createOnlineCheckout(
             reservation: true,
           },
         });
+
+        return updated;
       });
+
+      await this.syncReservationInvoices(
+        tenantId,
+        result.reservationId,
+      );
+
+      return result;
     }
   
     // ==========================================
@@ -1203,6 +1242,11 @@ async createOnlineCheckout(
           alreadyProcessed: false,
         };
       });
+
+      await this.syncReservationInvoices(
+        tenantId,
+        result.payment.reservationId,
+      );
 
       return result;
     }

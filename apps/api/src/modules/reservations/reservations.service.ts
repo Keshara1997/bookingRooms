@@ -16,6 +16,7 @@ import {
   import { PricingCalculatorService } from "../pricing/pricing-calculator.service.js";
   
   import { ReservationNumberService } from "./reservation-number.service.js";
+  import { NotificationQueueService } from "../../queues/notification-queue.service.js";
   
   import { CreateReservationDto } from "./dto/create-reservation.dto.js";
   import { UpdateReservationDto } from "./dto/update-reservation.dto.js";
@@ -31,7 +32,20 @@ import {
       private readonly prisma: PrismaService,
       private readonly pricingCalculator: PricingCalculatorService,
       private readonly reservationNumber: ReservationNumberService,
+      private readonly notificationQueue: NotificationQueueService,
     ) {}
+
+    private async notifyReservationConfirmed(reservation: {
+      tenantId: string;
+      id: string;
+      confirmationCode: string;
+    }) {
+      await this.notificationQueue.enqueueReservationConfirmed({
+        tenantId: reservation.tenantId,
+        reservationId: reservation.id,
+        confirmationCode: reservation.confirmationCode,
+      });
+    }
   
     // ==========================================
     // DATE HELPERS
@@ -209,7 +223,7 @@ import {
       // ----------------------------------------
   
       try {
-        return await this.prisma.$transaction(
+        const result = await this.prisma.$transaction(
           async (tx) => {
             // Validate physical room assignments.
   
@@ -393,6 +407,13 @@ import {
             // ----------------------------------
   
             const confirmationCode = this.reservationNumber.generate();
+
+            const source = dto.source ?? ReservationSource.ADMIN;
+            const initialStatus =
+              source === ReservationSource.ADMIN &&
+              dto.confirmOnCreate !== false
+                ? ReservationStatus.CONFIRMED
+                : ReservationStatus.PENDING;
   
             // ----------------------------------
             // 8. Create reservation
@@ -409,8 +430,8 @@ import {
                 checkOut,
                 adults: dto.adults,
                 children: dto.children,
-                source: dto.source ?? ReservationSource.ADMIN,
-                status: ReservationStatus.PENDING,
+                source,
+                status: initialStatus,
                 currency,
                 totalAmount: this.toMoney(totalAmount),
                 specialRequests: dto.specialRequests,
@@ -436,6 +457,12 @@ import {
             isolationLevel: "Serializable",
           },
         );
+
+        if (result.status === ReservationStatus.CONFIRMED) {
+          await this.notifyReservationConfirmed(result);
+        }
+
+        return result;
       } catch (error) {
         if (
           error instanceof BadRequestException ||
@@ -684,7 +711,7 @@ import {
         );
       }
   
-      return this.prisma.reservation.update({
+      const updated = await this.prisma.reservation.update({
         where: {
           id: reservationId,
         },
@@ -696,6 +723,10 @@ import {
           rooms: true,
         },
       });
+
+      await this.notifyReservationConfirmed(updated);
+
+      return updated;
     }
 
 

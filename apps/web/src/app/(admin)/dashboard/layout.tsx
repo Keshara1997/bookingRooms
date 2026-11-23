@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DashboardSession } from "@/components/dashboard-session";
+import { TenantSwitcher } from "@/components/tenant-switcher";
 
 const navItems = [
   { href: "/dashboard", label: "Overview" },
@@ -28,6 +29,7 @@ export default function DashboardLayout({
             bookingRooms Admin
           </Link>
           <div className="flex items-center gap-4 text-sm">
+            <TenantSwitcher />
             <Link href="/login" className="text-blue-600 hover:underline">
               Sign in
             </Link>

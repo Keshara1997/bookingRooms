@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 
 import { PrismaModule } from "./database/prisma.module.js";
+import { QueuesModule } from "./queues/queues.module.js";
 
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { TenantsModule } from "./modules/tenants/tenants.module.js";
@@ -28,6 +29,7 @@ import { InvoicesModule } from "./modules/invoices/invoices.module.js";
     }),
 
     PrismaModule,
+    QueuesModule,
     AuthModule,
     TenantsModule,
     HotelsModule,

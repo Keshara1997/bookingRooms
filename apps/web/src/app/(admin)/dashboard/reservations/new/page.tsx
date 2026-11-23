@@ -37,6 +37,8 @@ export default function NewReservationPage() {
   const [roomTypeId, setRoomTypeId] = useState("");
   const [ratePlanId, setRatePlanId] = useState("");
   const [pricePreview, setPricePreview] = useState<string>("");
+  const [confirmOnCreate, setConfirmOnCreate] = useState(true);
+  const [availabilityNote, setAvailabilityNote] = useState("");
 
   const [form, setForm] = useState({
     firstName: "",
@@ -123,6 +125,42 @@ export default function NewReservationPage() {
       });
   }, [ratePlanId, form.checkIn, form.checkOut]);
 
+  async function checkAvailability() {
+    if (!branchId || !roomTypeId || !form.checkIn || !form.checkOut) {
+      setAvailabilityNote("Select branch, room type, and dates first.");
+      return;
+    }
+
+    setAvailabilityNote("Checking availability...");
+
+    try {
+      const result = await apiRequest<{
+        available: boolean;
+        message?: string;
+      }>(`/branches/${branchId}/availability`, {
+        method: "POST",
+        body: JSON.stringify({
+          roomTypeId,
+          checkIn: form.checkIn,
+          checkOut: form.checkOut,
+          adults: Number(form.adults),
+          children: Number(form.children),
+          rooms: 1,
+        }),
+      });
+
+      setAvailabilityNote(
+        result.available
+          ? "Rooms are available for these dates."
+          : result.message ?? "Not available for these dates.",
+      );
+    } catch (err) {
+      setAvailabilityNote(
+        err instanceof Error ? err.message : "Availability check failed.",
+      );
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!branchId || !roomTypeId || !ratePlanId) {
@@ -144,6 +182,7 @@ export default function NewReservationPage() {
             adults: Number(form.adults),
             children: Number(form.children),
             source: "ADMIN",
+            confirmOnCreate,
             specialRequests: form.specialRequests || undefined,
             guest: {
               firstName: form.firstName,
@@ -382,6 +421,30 @@ export default function NewReservationPage() {
             </p>
           )}
         </section>
+
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={confirmOnCreate}
+              onChange={(event) =>
+                setConfirmOnCreate(event.target.checked)
+              }
+            />
+            Confirm immediately (front-desk booking)
+          </label>
+          <button
+            type="button"
+            onClick={() => void checkAvailability()}
+            className="rounded-lg border px-3 py-1.5 hover:bg-slate-50"
+          >
+            Check availability
+          </button>
+        </div>
+
+        {availabilityNote && (
+          <p className="text-sm text-gray-600">{availabilityNote}</p>
+        )}
 
         <label className="block text-sm">
           Special requests

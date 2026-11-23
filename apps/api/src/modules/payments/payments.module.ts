@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 
 import { PrismaModule } from "../../database/prisma.module.js";
 import { AuthModule } from "../auth/auth.module.js";
+import { InvoicesModule } from "../invoices/invoices.module.js";
 
 import { TenantGuard } from "../../common/guards/tenant.guard.js";
 import { RolesGuard } from "../../common/guards/roles.guard.js";
@@ -26,6 +27,7 @@ import {
   imports: [
     PrismaModule,
     AuthModule,
+    InvoicesModule,
   ],
 
   controllers: [

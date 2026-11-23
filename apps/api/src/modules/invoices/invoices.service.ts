@@ -200,6 +200,40 @@ export class InvoicesService {
       });
     }
 
+    if (
+      netPaid < totalCents &&
+      invoice.status === InvoiceStatus.PAID
+    ) {
+      return this.prisma.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: InvoiceStatus.ISSUED,
+          paidAt: null,
+        },
+        include: { lineItems: true },
+      });
+    }
+
     return invoice;
+  }
+
+  async syncInvoicesForReservation(
+    tenantId: string,
+    reservationId: string,
+  ) {
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        tenantId,
+        reservationId,
+        status: {
+          in: [InvoiceStatus.ISSUED, InvoiceStatus.PAID],
+        },
+      },
+      select: { id: true },
+    });
+
+    for (const invoice of invoices) {
+      await this.syncPaymentStatus(tenantId, invoice.id);
+    }
   }
 }

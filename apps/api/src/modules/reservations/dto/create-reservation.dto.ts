@@ -2,6 +2,7 @@
 import {
     ArrayMinSize,
     IsArray,
+    IsBoolean,
     IsDateString,
     IsEmail,
     IsEnum,
@@ -105,6 +106,10 @@ import {
     @IsOptional()
     @IsEnum(ReservationSource)
     source?: ReservationSource;
+
+    @IsOptional()
+    @IsBoolean()
+    confirmOnCreate?: boolean;
   
     @IsOptional()
     @IsString()

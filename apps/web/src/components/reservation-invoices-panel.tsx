@@ -144,8 +144,9 @@ export function ReservationInvoicesPanel({
                   type="button"
                   onClick={() => void syncPaid(invoice.id)}
                   className="text-blue-600 underline"
+                  title="Usually updates automatically when payments complete"
                 >
-                  Mark paid from payments
+                  Refresh paid status
                 </button>
               )}
             </div>

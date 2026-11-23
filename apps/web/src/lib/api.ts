@@ -43,10 +43,13 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    throw new Error(
-      errorBody?.message ??
-        `Request failed with status ${response.status}`,
-    );
+    const rawMessage = errorBody?.message;
+    const message = Array.isArray(rawMessage)
+      ? rawMessage.join(", ")
+      : typeof rawMessage === "string"
+        ? rawMessage
+        : `Request failed with status ${response.status}`;
+    throw new Error(message);
   }
 
   if (response.status === 204) {
