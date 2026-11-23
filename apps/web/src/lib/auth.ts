@@ -1,7 +1,5 @@
 import { apiRequest } from "./api";
 
-apps/web/src/lib/auth.tsimport { apiRequest } from "./api";
-
 export interface AuthUser {
   id: string;
   email: string;

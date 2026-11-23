@@ -9,6 +9,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   RawBodyRequest,
   Req,
   UseGuards,
@@ -104,6 +105,24 @@ class PaymentReasonDto {
   @IsString()
   @MaxLength(1000)
   reason?: string;
+}
+
+class RefundPaymentDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reason?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  amount?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  idempotencyKey?: string;
 }
 
 @Controller("payments/webhooks")
@@ -203,6 +222,21 @@ export class PaymentsController {
   // GET PAYMENT DETAILS
   // GET /api/v1/payments/:paymentId
   // ==========================================
+
+  @Get("payments/reconciliation")
+  @Roles("OWNER", "ADMIN", "ACCOUNTANT")
+  getReconciliation(
+    @CurrentTenant() tenantId: string,
+    @Query("provider") provider?: string,
+    @Query("limit") limit?: string,
+  ) {
+    const parsedLimit = limit ? Number(limit) : undefined;
+
+    return this.paymentsService.getReconciliation(tenantId, {
+      provider,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    });
+  }
 
   @Get("payments/:paymentId")
   @Roles(
@@ -312,12 +346,12 @@ export class PaymentsController {
   refund(
     @CurrentTenant() tenantId: string,
     @Param("paymentId") paymentId: string,
-    @Body() dto: PaymentReasonDto,
+    @Body() dto: RefundPaymentDto,
   ) {
-    return this.paymentsService.refund(
-      tenantId,
-      paymentId,
-      dto.reason,
-    );
+    return this.paymentsService.refund(tenantId, paymentId, {
+      reason: dto.reason,
+      amount: dto.amount,
+      idempotencyKey: dto.idempotencyKey,
+    });
   }
 }

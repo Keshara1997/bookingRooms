@@ -11,7 +11,8 @@
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "infra:logs": "docker compose logs -f",
-    "infra:status": "docker compose ps"
+    "infra:status": "docker compose ps",
+    "db:seed": "npm --prefix apps/api run prisma:seed"
   },
   "type": "module"
 }

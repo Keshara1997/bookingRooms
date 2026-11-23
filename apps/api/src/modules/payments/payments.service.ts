@@ -15,15 +15,30 @@ import {
   import {
     PaymentMethod,
     PaymentStatus,
+    RefundStatus,
     ReservationStatus,
   } from "../../generated/prisma/enums.js";
+  import {
+    PAYMENT_PROVIDERS,
+    PaymentProvider,
+    PaymentProviderName,
+  } from "./providers/payment-provider.interface.js";
+  import {
+    amountToCents,
+    centsToAmount,
+    committedCentsForPayment,
+    groupRefundsByPaymentId,
+    netPaidCents,
+    sumCompletedRefundsCents,
+  } from "./payments-balance.util.js";
+
+  export interface RefundPaymentInput {
+    reason?: string;
+    amount?: number;
+    idempotencyKey?: string;
+  }
 
   import { Inject } from "@nestjs/common";
-import {
-  PAYMENT_PROVIDERS,
-  PaymentProvider,
-  PaymentProviderName,
-} from "./providers/payment-provider.interface.js";
   
   import { PrismaService } from "../../database/prisma.service.js";
   
@@ -80,6 +95,35 @@ import {
       if (!eventObject || typeof eventObject !== "object") {
         throw new BadRequestException(
           "Stripe webhook event data is missing.",
+        );
+      }
+
+      const supportedEvents = [
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+        "checkout.session.async_payment_failed",
+      ];
+
+      if (!supportedEvents.includes(String(event.type ?? ""))) {
+        return {
+          received: true,
+          ignored: true,
+          reason: "Unsupported Stripe event type.",
+        };
+      }
+
+      if (eventObject.object !== "checkout.session") {
+        throw new BadRequestException(
+          "Unexpected Stripe webhook object type.",
+        );
+      }
+
+      if (
+        eventObject.mode !== "payment" ||
+        !eventObject.metadata?.payment_id
+      ) {
+        throw new BadRequestException(
+          "Invalid Stripe Checkout Session metadata.",
         );
       }
     
@@ -206,15 +250,14 @@ import {
             : PaymentStatus.FAILED;
 
       if (
-  payment.transactionId &&
-  payment.transactionId !== checkoutSessionId
-) {
-  throw new BadRequestException(
-    "Stripe Checkout Session does not match the stored payment session.",
-  );
-}
+        payment.transactionId &&
+        payment.transactionId !== checkoutSessionId
+      ) {
+        throw new BadRequestException(
+          "Stripe Checkout Session does not match the stored payment session.",
+        );
+      }
 
-    
       const updatedPayment = await this.prisma.payment.update({
         where: {
           id: payment.id,
@@ -234,39 +277,6 @@ import {
         },
       });
 
-
-
-const supportedEvents = [
-  "checkout.session.completed",
-  "checkout.session.async_payment_succeeded",
-  "checkout.session.async_payment_failed",
-];
-
-if (!supportedEvents.includes(String(event.type))) {
-  return {
-    received: true,
-    ignored: true,
-    reason: "Unsupported Stripe event type.",
-  };
-}
-
-if (eventObject.object !== "checkout.session") {
-  throw new BadRequestException(
-    "Unexpected Stripe webhook object type.",
-  );
-}
-
-if (
-  eventObject.mode !== "payment" ||
-  !eventObject.metadata?.payment_id
-) {
-  throw new BadRequestException(
-    "Invalid Stripe Checkout Session metadata.",
-  );
-}
-
-
-    
       return {
         received: true,
         alreadyProcessed: false,
@@ -520,26 +530,43 @@ async createOnlineCheckout(
         where: {
           tenantId,
           reservationId,
-          status: {
-            in: [
-              PaymentStatus.PENDING,
-              PaymentStatus.PROCESSING,
-              PaymentStatus.COMPLETED,
-            ],
-          },
         },
         select: {
+          id: true,
           amount: true,
+          status: true,
         },
       });
 
-      const reservationAmount = Math.round(
-        Number(reservation.totalAmount) * 100,
-      );
+      const paymentIds = existingPayments.map((item) => item.id);
+
+      const existingRefunds =
+        paymentIds.length > 0
+          ? await tx.paymentRefund.findMany({
+              where: {
+                tenantId,
+                paymentId: { in: paymentIds },
+              },
+              select: {
+                paymentId: true,
+                status: true,
+                amount: true,
+              },
+            })
+          : [];
+
+      const refundsByPaymentId =
+        groupRefundsByPaymentId(existingRefunds);
+
+      const reservationAmount = amountToCents(reservation.totalAmount);
 
       const committedAmount = existingPayments.reduce(
         (total, item) =>
-          total + Math.round(Number(item.amount) * 100),
+          total +
+          committedCentsForPayment(
+            item,
+            refundsByPaymentId.get(item.id) ?? [],
+          ),
         0,
       );
 
@@ -660,7 +687,13 @@ async createOnlineCheckout(
               tenantId,
             },
             include: {
-              payments: true,
+              payments: {
+                select: {
+                  id: true,
+                  amount: true,
+                  status: true,
+                },
+              },
             },
           });
   
@@ -687,22 +720,37 @@ async createOnlineCheckout(
             );
           }
   
-          const completedPayments = reservation.payments
-            .filter(
-              (payment) =>
-                payment.status === PaymentStatus.COMPLETED,
-            )
-            .reduce(
-              (total, payment) =>
-                total + Math.round(Number(payment.amount) * 100),
-              0,
-            );
-  
-          const reservationTotal = Math.round(
-            Number(reservation.totalAmount) * 100,
+          const paymentIds = reservation.payments.map(
+            (payment) => payment.id,
+          );
+
+          const refunds =
+            paymentIds.length > 0
+              ? await tx.paymentRefund.findMany({
+                  where: {
+                    tenantId,
+                    paymentId: { in: paymentIds },
+                  },
+                  select: {
+                    paymentId: true,
+                    status: true,
+                    amount: true,
+                  },
+                })
+              : [];
+
+          const refundsByPaymentId = groupRefundsByPaymentId(refunds);
+
+          const netPaid = netPaidCents(
+            reservation.payments,
+            refundsByPaymentId,
+          );
+
+          const reservationTotal = amountToCents(
+            reservation.totalAmount,
           );
   
-          if (completedPayments + amountInCents > reservationTotal) {
+          if (netPaid + amountInCents > reservationTotal) {
             throw new BadRequestException(
               "Payment amount exceeds the remaining reservation balance.",
             );
@@ -763,18 +811,35 @@ async createOnlineCheckout(
         orderBy: {
           createdAt: "desc",
         },
+        include: {
+          refunds: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+        },
       });
   
-      const paidAmount = payments
-        .filter(
-          (payment) => payment.status === PaymentStatus.COMPLETED,
-        )
+      const refunds = payments.flatMap((payment) =>
+        payment.refunds.map((refund) => ({
+          paymentId: payment.id,
+          status: refund.status,
+          amount: refund.amount,
+        })),
+      );
+
+      const refundsByPaymentId = groupRefundsByPaymentId(refunds);
+      const netPaidCentsValue = netPaidCents(payments, refundsByPaymentId);
+      const refundedCents = refunds
+        .filter((refund) => refund.status === RefundStatus.COMPLETED)
         .reduce(
-          (total, payment) => total + Number(payment.amount),
+          (total, refund) => total + amountToCents(refund.amount),
           0,
         );
-  
+
       const totalAmount = Number(reservation.totalAmount);
+      const paidAmount = centsToAmount(netPaidCentsValue);
+      const refundedAmount = centsToAmount(refundedCents);
   
       return {
         reservation,
@@ -782,9 +847,15 @@ async createOnlineCheckout(
         summary: {
           totalAmount,
           paidAmount,
+          refundedAmount,
           balance: Math.max(
             0,
-            Math.round((totalAmount - paidAmount) * 100) / 100,
+            centsToAmount(
+              Math.max(
+                0,
+                amountToCents(totalAmount) - netPaidCentsValue,
+              ),
+            ),
           ),
           currency: reservation.currency,
         },
@@ -809,6 +880,11 @@ async createOnlineCheckout(
             include: {
               guest: true,
               branch: true,
+            },
+          },
+          refunds: {
+            orderBy: {
+              createdAt: "desc",
             },
           },
         },
@@ -956,34 +1032,248 @@ async createOnlineCheckout(
     async refund(
       tenantId: string,
       paymentId: string,
-      reason?: string,
+      input: RefundPaymentInput = {},
     ) {
-      const payment = await this.findOne(tenantId, paymentId);
-  
-      if (payment.status !== PaymentStatus.COMPLETED) {
-        throw new BadRequestException(
-          "Only completed payments can be refunded.",
-        );
-      }
-  
-      const notes = [
-        payment.notes,
-        reason ? `Refund: ${reason}` : "Full refund recorded.",
-      ]
-        .filter(Boolean)
-        .join("\n");
-  
-      return this.prisma.payment.update({
+      const payment = await this.prisma.payment.findFirst({
         where: {
           id: paymentId,
-        },
-        data: {
-          status: PaymentStatus.REFUNDED,
-          notes,
+          tenantId,
         },
         include: {
+          refunds: true,
           reservation: true,
         },
+      });
+
+      if (!payment) {
+        throw new NotFoundException("Payment not found.");
+      }
+
+      if (
+        payment.status !== PaymentStatus.COMPLETED &&
+        payment.status !== PaymentStatus.PARTIALLY_REFUNDED
+      ) {
+        throw new BadRequestException(
+          "Only completed or partially refunded payments can be refunded.",
+        );
+      }
+
+      if (input.idempotencyKey) {
+        const existing = payment.refunds.find(
+          (refund) =>
+            refund.idempotencyKey === input.idempotencyKey &&
+            refund.status === RefundStatus.COMPLETED,
+        );
+
+        if (existing) {
+          return {
+            payment: await this.findOne(tenantId, paymentId),
+            refund: existing,
+            alreadyProcessed: true,
+          };
+        }
+      }
+
+      const alreadyRefundedCents = sumCompletedRefundsCents(
+        payment.refunds,
+      );
+      const paymentAmountCents = amountToCents(payment.amount);
+      const remainingRefundableCents =
+        paymentAmountCents - alreadyRefundedCents;
+
+      if (remainingRefundableCents <= 0) {
+        throw new BadRequestException(
+          "This payment has no remaining refundable balance.",
+        );
+      }
+
+      let refundCents = remainingRefundableCents;
+
+      if (input.amount !== undefined) {
+        if (!Number.isFinite(input.amount) || input.amount <= 0) {
+          throw new BadRequestException(
+            "Refund amount must be greater than zero.",
+          );
+        }
+
+        refundCents = amountToCents(input.amount);
+
+        if (
+          Math.abs(input.amount * 100 - refundCents) > 0.000001
+        ) {
+          throw new BadRequestException(
+            "Refund amount cannot have more than two decimal places.",
+          );
+        }
+      }
+
+      if (refundCents > remainingRefundableCents) {
+        throw new BadRequestException(
+          "Refund amount exceeds the remaining refundable balance.",
+        );
+      }
+
+      const refundAmount = centsToAmount(refundCents);
+      const reasonText =
+        input.reason ?? `Refund of ${refundAmount.toFixed(2)} ${payment.currency}.`;
+
+      const isOnlineProvider =
+        payment.method === PaymentMethod.ONLINE &&
+        payment.provider &&
+        payment.transactionId;
+
+      let providerRefundId: string | undefined;
+
+      if (isOnlineProvider) {
+        const providerName = payment.provider as PaymentProviderName;
+        const provider = this.paymentProviders.find(
+          (item) => item.name === providerName,
+        );
+
+        if (!provider) {
+          throw new BadRequestException(
+            `${providerName} provider is not configured.`,
+          );
+        }
+
+        const providerResult = await provider.refundPayment({
+          paymentId: payment.id,
+          transactionId: payment.transactionId!,
+          amount: refundAmount,
+          currency: payment.currency,
+          reason: reasonText,
+        });
+
+        if (!providerResult.successful) {
+          throw new BadRequestException(
+            providerResult.message ??
+              "The payment provider rejected the refund request.",
+          );
+        }
+
+        providerRefundId = providerResult.providerReference;
+      }
+
+      const totalRefundedAfter = alreadyRefundedCents + refundCents;
+      const newPaymentStatus =
+        totalRefundedAfter >= paymentAmountCents
+          ? PaymentStatus.REFUNDED
+          : PaymentStatus.PARTIALLY_REFUNDED;
+
+      const notes = [payment.notes, reasonText]
+        .filter(Boolean)
+        .join("\n");
+
+      const result = await this.prisma.$transaction(async (tx) => {
+        const refundRecord = await tx.paymentRefund.create({
+          data: {
+            tenantId,
+            paymentId,
+            amount: refundAmount.toFixed(2),
+            currency: payment.currency,
+            status: RefundStatus.COMPLETED,
+            provider: payment.provider,
+            providerRefundId,
+            reason: reasonText,
+            idempotencyKey: input.idempotencyKey,
+          },
+        });
+
+        const updatedPayment = await tx.payment.update({
+          where: {
+            id: paymentId,
+          },
+          data: {
+            status: newPaymentStatus,
+            notes: notes || null,
+          },
+          include: {
+            reservation: true,
+            refunds: {
+              orderBy: {
+                createdAt: "desc",
+              },
+            },
+          },
+        });
+
+        return {
+          payment: updatedPayment,
+          refund: refundRecord,
+          alreadyProcessed: false,
+        };
+      });
+
+      return result;
+    }
+
+    async getReconciliation(
+      tenantId: string,
+      options: {
+        provider?: string;
+        limit?: number;
+      } = {},
+    ) {
+      const safeLimit = Math.min(
+        100,
+        Math.max(1, Math.floor(options.limit ?? 50)),
+      );
+
+      const payments = await this.prisma.payment.findMany({
+        where: {
+          tenantId,
+          ...(options.provider
+            ? { provider: options.provider.toUpperCase() }
+            : {}),
+        },
+        take: safeLimit,
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          refunds: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+          reservation: {
+            select: {
+              id: true,
+              confirmationCode: true,
+              status: true,
+            },
+          },
+        },
+      });
+
+      return payments.map((payment) => {
+        const refundableRemainingCents = Math.max(
+          0,
+          amountToCents(payment.amount) -
+            sumCompletedRefundsCents(payment.refunds),
+        );
+
+        return {
+          id: payment.id,
+          reservationId: payment.reservationId,
+          confirmationCode: payment.reservation.confirmationCode,
+          amount: Number(payment.amount),
+          currency: payment.currency,
+          method: payment.method,
+          status: payment.status,
+          provider: payment.provider,
+          transactionId: payment.transactionId,
+          paidAt: payment.paidAt,
+          refundableRemaining: centsToAmount(refundableRemainingCents),
+          refunds: payment.refunds.map((refund) => ({
+            id: refund.id,
+            amount: Number(refund.amount),
+            status: refund.status,
+            providerRefundId: refund.providerRefundId,
+            createdAt: refund.createdAt,
+          })),
+          createdAt: payment.createdAt,
+        };
       });
     }
   }

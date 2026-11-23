@@ -95,6 +95,12 @@ enum PaymentMethod {
   OTHER
 }
 
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 enum HousekeepingStatus {
   PENDING
   IN_PROGRESS
@@ -141,6 +147,7 @@ model Tenant {
   reservations      Reservation[]
   reservationRooms  ReservationRoom[]
   payments          Payment[]
+  paymentRefunds    PaymentRefund[]
   amenities         Amenity[]
   housekeepingTasks HousekeepingTask[]
   auditLogs         AuditLog[]
@@ -569,10 +576,34 @@ model Payment {
 
   tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  refunds     PaymentRefund[]
 
   @@index([tenantId, status])
   @@index([reservationId])
   @@map("payments")
+}
+
+model PaymentRefund {
+  id               String       @id @default(cuid())
+  tenantId         String
+  paymentId        String
+  amount           Decimal      @db.Decimal(12, 2)
+  currency         String       @db.VarChar(3)
+  status           RefundStatus @default(PENDING)
+  provider         String?
+  providerRefundId String?
+  reason           String?      @db.Text
+  idempotencyKey   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, idempotencyKey])
+  @@index([tenantId, paymentId])
+  @@map("payment_refunds")
 }
 
 // ============================================
