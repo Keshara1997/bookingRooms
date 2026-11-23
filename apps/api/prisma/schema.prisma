@@ -101,6 +101,13 @@ enum RefundStatus {
   FAILED
 }
 
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOID
+}
+
 enum HousekeepingStatus {
   PENDING
   IN_PROGRESS
@@ -148,6 +155,7 @@ model Tenant {
   reservationRooms  ReservationRoom[]
   payments          Payment[]
   paymentRefunds    PaymentRefund[]
+  invoices          Invoice[]
   amenities         Amenity[]
   housekeepingTasks HousekeepingTask[]
   auditLogs         AuditLog[]
@@ -522,6 +530,7 @@ model Reservation {
   guest    Guest             @relation(fields: [guestId], references: [id], onDelete: Restrict)
   rooms    ReservationRoom[]
   payments Payment[]
+  invoices Invoice[]
 
   @@unique([tenantId, confirmationCode])
   @@index([tenantId, status])
@@ -604,6 +613,47 @@ model PaymentRefund {
   @@unique([paymentId, idempotencyKey])
   @@index([tenantId, paymentId])
   @@map("payment_refunds")
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  tenantId      String
+  reservationId String
+  invoiceNumber String
+  status        InvoiceStatus @default(DRAFT)
+  currency      String        @default("LKR") @db.VarChar(3)
+  subtotal      Decimal       @db.Decimal(12, 2)
+  taxTotal      Decimal       @default(0) @db.Decimal(12, 2)
+  total         Decimal       @db.Decimal(12, 2)
+  issuedAt      DateTime?
+  paidAt        DateTime?
+  notes         String?       @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  lineItems   InvoiceLineItem[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId, reservationId])
+  @@index([tenantId, status])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int     @default(1)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  lineTotal   Decimal @db.Decimal(12, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
 }
 
 // ============================================

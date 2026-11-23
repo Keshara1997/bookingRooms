@@ -16,6 +16,7 @@ import { ReservationsModule } from "./modules/reservations/reservations.module.j
 import { GuestsModule } from "./modules/guests/guests.module.js";
 import { PaymentsModule } from "./modules/payments/payments.module.js";
 import { AmenitiesModule } from "./modules/amenities/amenities.module.js";
+import { InvoicesModule } from "./modules/invoices/invoices.module.js";
 
 
 
@@ -27,7 +28,6 @@ import { AmenitiesModule } from "./modules/amenities/amenities.module.js";
     }),
 
     PrismaModule,
-
     AuthModule,
     TenantsModule,
     HotelsModule,
@@ -40,6 +40,7 @@ import { AmenitiesModule } from "./modules/amenities/amenities.module.js";
     GuestsModule,
     PaymentsModule,
     AmenitiesModule,
+    InvoicesModule,
     ],
 })
 export class AppModule {}

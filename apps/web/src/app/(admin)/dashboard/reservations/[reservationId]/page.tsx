@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { ReservationInvoicesPanel } from "@/components/reservation-invoices-panel";
 import { ReservationPaymentsPanel } from "@/components/reservation-payments-panel";
 import { apiRequest } from "@/lib/api";
 import type { Reservation } from "@/lib/reservation-types";
@@ -236,6 +237,7 @@ export default function ReservationDetailPage() {
           )}
 
           <ReservationPaymentsPanel reservationId={reservation.id} />
+          <ReservationInvoicesPanel reservationId={reservation.id} />
         </>
       )}
     </main>
