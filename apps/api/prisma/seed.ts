@@ -173,7 +173,7 @@ async function main() {
       });
     }
 
-    const ratePlan = await tx.ratePlan.create({
+    const deluxeRatePlan = await tx.ratePlan.create({
       data: {
         tenantId: createdTenant.id,
         hotelId: hotel.id,
@@ -187,15 +187,38 @@ async function main() {
       },
     });
 
+    const standardRatePlan = await tx.ratePlan.create({
+      data: {
+        tenantId: createdTenant.id,
+        hotelId: hotel.id,
+        roomTypeId: standard.id,
+        name: "Best Flexible",
+        code: "BAR-STD",
+        description: "Standard room flexible rate.",
+        minStayNights: 1,
+        isRefundable: true,
+        isActive: true,
+      },
+    });
+
     for (let day = 0; day < 45; day += 1) {
       const date = utcDateOnly(day);
 
       await tx.dailyRate.create({
         data: {
           tenantId: createdTenant.id,
-          ratePlanId: ratePlan.id,
+          ratePlanId: deluxeRatePlan.id,
           date,
           price: "9000.00",
+        },
+      });
+
+      await tx.dailyRate.create({
+        data: {
+          tenantId: createdTenant.id,
+          ratePlanId: standardRatePlan.id,
+          date,
+          price: "7000.00",
         },
       });
 

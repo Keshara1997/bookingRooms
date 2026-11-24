@@ -9,6 +9,7 @@ import {
   import {
     ReservationSource,
     ReservationStatus,
+    RoomStatus,
   } from "../../generated/prisma/enums.js";
   
   import { PrismaService } from "../../database/prisma.service.js";
@@ -17,6 +18,7 @@ import {
   
   import { ReservationNumberService } from "./reservation-number.service.js";
   import { NotificationQueueService } from "../../queues/notification-queue.service.js";
+  import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
   
   import { CreateReservationDto } from "./dto/create-reservation.dto.js";
   import { UpdateReservationDto } from "./dto/update-reservation.dto.js";
@@ -33,7 +35,42 @@ import {
       private readonly pricingCalculator: PricingCalculatorService,
       private readonly reservationNumber: ReservationNumberService,
       private readonly notificationQueue: NotificationQueueService,
+      private readonly housekeeping: HousekeepingService,
     ) {}
+
+    private async syncPhysicalRoomStatuses(
+      tenantId: string,
+      reservationId: string,
+      nextStatus: RoomStatus,
+    ) {
+      const lines = await this.prisma.reservationRoom.findMany({
+        where: {
+          reservationId,
+          roomId: { not: null },
+        },
+        select: { roomId: true },
+      });
+
+      const roomIds = [
+        ...new Set(
+          lines
+            .map((line) => line.roomId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+
+      if (roomIds.length === 0) {
+        return;
+      }
+
+      await this.prisma.room.updateMany({
+        where: {
+          tenantId,
+          id: { in: roomIds },
+        },
+        data: { status: nextStatus },
+      });
+    }
 
     private async notifyReservationConfirmed(
       tenantId: string,
@@ -791,7 +828,7 @@ import {
         );
       }
 
-      return tx.reservation.update({
+      const updated = await tx.reservation.update({
         where: {
           id: reservationId,
         },
@@ -808,6 +845,15 @@ import {
           },
         },
       });
+
+      return updated;
+    }).then(async (updated) => {
+      await this.syncPhysicalRoomStatuses(
+        tenantId,
+        reservationId,
+        RoomStatus.OCCUPIED,
+      );
+      return updated;
     });
   }
 
@@ -834,7 +880,7 @@ import {
         );
       }
 
-      return tx.reservation.update({
+      const updated = await tx.reservation.update({
         where: {
           id: reservationId,
         },
@@ -851,6 +897,14 @@ import {
           },
         },
       });
+
+      return updated;
+    }).then(async (updated) => {
+      await this.housekeeping.createCheckoutCleaningTasks(
+        tenantId,
+        reservationId,
+      );
+      return updated;
     });
   }
 

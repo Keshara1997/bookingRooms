@@ -4,6 +4,7 @@ import { Module } from "@nestjs/common";
 import { PrismaModule } from "../../database/prisma.module.js";
 import { AuthModule } from "../auth/auth.module.js";
 import { PricingModule } from "../pricing/pricing.module.js";
+import { HousekeepingModule } from "../housekeeping/housekeeping.module.js";
 
 import { TenantGuard } from "../../common/guards/tenant.guard.js";
 import { RolesGuard } from "../../common/guards/roles.guard.js";
@@ -17,6 +18,7 @@ import { ReservationNumberService } from "./reservation-number.service.js";
     PrismaModule,
     AuthModule,
     PricingModule,
+    HousekeepingModule,
   ],
 
   controllers: [

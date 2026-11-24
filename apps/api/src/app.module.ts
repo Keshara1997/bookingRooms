@@ -18,6 +18,8 @@ import { GuestsModule } from "./modules/guests/guests.module.js";
 import { PaymentsModule } from "./modules/payments/payments.module.js";
 import { AmenitiesModule } from "./modules/amenities/amenities.module.js";
 import { InvoicesModule } from "./modules/invoices/invoices.module.js";
+import { PublicModule } from "./modules/public/public.module.js";
+import { HousekeepingModule } from "./modules/housekeeping/housekeeping.module.js";
 
 
 
@@ -43,6 +45,8 @@ import { InvoicesModule } from "./modules/invoices/invoices.module.js";
     PaymentsModule,
     AmenitiesModule,
     InvoicesModule,
+    PublicModule,
+    HousekeepingModule,
     ],
 })
 export class AppModule {}
