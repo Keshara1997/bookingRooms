@@ -99,12 +99,20 @@ export default function ReservationsPage() {
             Select a branch to view bookings.
           </p>
         </div>
-        <Link
-          href="/dashboard/reservations/new"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
-        >
-          + New reservation
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/reservations/calendar"
+            className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50"
+          >
+            Calendar
+          </Link>
+          <Link
+            href="/dashboard/reservations/new"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            + New reservation
+          </Link>
+        </div>
       </div>
 
       {hotels.length > 0 && (

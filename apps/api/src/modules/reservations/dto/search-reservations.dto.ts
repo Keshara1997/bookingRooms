@@ -53,6 +53,15 @@ import {
     @IsOptional()
     @IsDateString()
     checkOutTo?: string;
+
+    /** Stays that overlap [overlapsFrom, overlapsTo) — for calendar views. */
+    @IsOptional()
+    @IsDateString()
+    overlapsFrom?: string;
+
+    @IsOptional()
+    @IsDateString()
+    overlapsTo?: string;
   
     @IsOptional()
     @IsString()

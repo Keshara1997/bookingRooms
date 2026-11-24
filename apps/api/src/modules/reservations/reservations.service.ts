@@ -35,15 +35,38 @@ import {
       private readonly notificationQueue: NotificationQueueService,
     ) {}
 
-    private async notifyReservationConfirmed(reservation: {
-      tenantId: string;
-      id: string;
-      confirmationCode: string;
-    }) {
+    private async notifyReservationConfirmed(
+      tenantId: string,
+      reservationId: string,
+    ) {
+      const details = await this.prisma.reservation.findFirst({
+        where: {
+          id: reservationId,
+          tenantId,
+        },
+        include: {
+          guest: true,
+          hotel: { select: { name: true } },
+          branch: { select: { name: true } },
+        },
+      });
+
+      if (!details) {
+        return;
+      }
+
       await this.notificationQueue.enqueueReservationConfirmed({
-        tenantId: reservation.tenantId,
-        reservationId: reservation.id,
-        confirmationCode: reservation.confirmationCode,
+        tenantId,
+        reservationId: details.id,
+        confirmationCode: details.confirmationCode,
+        guestEmail: details.guest.email,
+        guestName: `${details.guest.firstName} ${details.guest.lastName}`,
+        hotelName: details.hotel.name,
+        branchName: details.branch.name,
+        checkIn: details.checkIn.toISOString().slice(0, 10),
+        checkOut: details.checkOut.toISOString().slice(0, 10),
+        currency: details.currency,
+        totalAmount: details.totalAmount.toString(),
       });
     }
   
@@ -459,7 +482,7 @@ import {
         );
 
         if (result.status === ReservationStatus.CONFIRMED) {
-          await this.notifyReservationConfirmed(result);
+          await this.notifyReservationConfirmed(tenantId, result.id);
         }
 
         return result;
@@ -584,6 +607,20 @@ import {
           some: {
             roomTypeId: filters.roomTypeId,
           },
+        };
+      }
+
+      if (filters.overlapsFrom && filters.overlapsTo) {
+        const rangeStart = this.parseDate(filters.overlapsFrom);
+        const rangeEnd = this.parseDate(filters.overlapsTo);
+
+        where.checkIn = {
+          ...(typeof where.checkIn === "object" ? where.checkIn : {}),
+          lt: rangeEnd,
+        };
+        where.checkOut = {
+          ...(typeof where.checkOut === "object" ? where.checkOut : {}),
+          gt: rangeStart,
         };
       }
   
@@ -724,7 +761,7 @@ import {
         },
       });
 
-      await this.notifyReservationConfirmed(updated);
+      await this.notifyReservationConfirmed(tenantId, updated.id);
 
       return updated;
     }

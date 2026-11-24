@@ -12,10 +12,15 @@ import {
   groupRefundsByPaymentId,
   netPaidCents,
 } from "../payments/payments-balance.util.js";
+import { NotificationQueueService } from "../../queues/notification-queue.service.js";
+import { buildInvoicePdf } from "./invoice-pdf.util.js";
 
 @Injectable()
 export class InvoicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationQueue: NotificationQueueService,
+  ) {}
 
   private async nextInvoiceNumber(tenantId: string): Promise<string> {
     const year = new Date().getUTCFullYear();
@@ -157,14 +162,82 @@ export class InvoicesService {
       throw new BadRequestException("Only draft invoices can be issued.");
     }
 
-    return this.prisma.invoice.update({
+    const issued = await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: {
         status: InvoiceStatus.ISSUED,
         issuedAt: new Date(),
       },
-      include: { lineItems: true },
+      include: {
+        lineItems: true,
+        reservation: {
+          include: {
+            guest: true,
+            hotel: { select: { name: true } },
+          },
+        },
+      },
     });
+
+    const guest = issued.reservation.guest;
+    const hotel = issued.reservation.hotel;
+
+    await this.notificationQueue.enqueueInvoiceIssued({
+      tenantId,
+      invoiceId: issued.id,
+      invoiceNumber: issued.invoiceNumber,
+      guestEmail: guest.email,
+      guestName: `${guest.firstName} ${guest.lastName}`,
+      hotelName: hotel.name,
+      confirmationCode: issued.reservation.confirmationCode,
+      currency: issued.currency,
+      total: issued.total.toString(),
+      lineItems: issued.lineItems.map((line) => ({
+        description: line.description,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice.toString(),
+        lineTotal: line.lineTotal.toString(),
+      })),
+    });
+
+    return issued;
+  }
+
+  async buildPdfBuffer(tenantId: string, invoiceId: string) {
+    const invoice = await this.findOne(tenantId, invoiceId);
+    const guest = invoice.reservation.guest;
+    const hotel = await this.prisma.hotel.findFirst({
+      where: {
+        id: invoice.reservation.hotelId,
+        tenantId,
+      },
+      select: { name: true },
+    });
+
+    const buffer = await buildInvoicePdf({
+      invoiceNumber: invoice.invoiceNumber,
+      status: invoice.status,
+      currency: invoice.currency,
+      subtotal: invoice.subtotal.toString(),
+      taxTotal: invoice.taxTotal.toString(),
+      total: invoice.total.toString(),
+      issuedAt: invoice.issuedAt,
+      guestName: `${guest.firstName} ${guest.lastName}`,
+      guestEmail: guest.email,
+      confirmationCode: invoice.reservation.confirmationCode,
+      hotelName: hotel?.name ?? "Hotel",
+      lineItems: invoice.lineItems.map((line) => ({
+        description: line.description,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice.toString(),
+        lineTotal: line.lineTotal.toString(),
+      })),
+    });
+
+    return {
+      buffer,
+      filename: `${invoice.invoiceNumber}.pdf`,
+    };
   }
 
   async syncPaymentStatus(tenantId: string, invoiceId: string) {

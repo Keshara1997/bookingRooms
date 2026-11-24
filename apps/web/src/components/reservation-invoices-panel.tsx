@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { apiRequest } from "@/lib/api";
+import { apiDownload, apiRequest } from "@/lib/api";
 
 interface InvoiceLineItem {
   description: string;
@@ -129,7 +129,28 @@ export function ReservationInvoicesPanel({
                 </li>
               ))}
             </ul>
-            <div className="mt-3 flex gap-3">
+            <div className="mt-3 flex flex-wrap gap-3">
+              {(invoice.status === "ISSUED" ||
+                invoice.status === "PAID") && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    void apiDownload(
+                      `/invoices/${invoice.id}/pdf`,
+                      `${invoice.invoiceNumber}.pdf`,
+                    ).catch((err) =>
+                      setMessage(
+                        err instanceof Error
+                          ? err.message
+                          : "Could not download PDF.",
+                      ),
+                    )
+                  }
+                  className="text-blue-600 underline"
+                >
+                  Download PDF
+                </button>
+              )}
               {invoice.status === "DRAFT" && (
                 <button
                   type="button"

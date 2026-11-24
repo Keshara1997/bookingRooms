@@ -58,3 +58,42 @@ export async function apiRequest<T>(
 
   return response.json() as Promise<T>;
 }
+
+export async function apiDownload(
+  endpoint: string,
+  filename: string,
+): Promise<void> {
+  const headers = new Headers();
+
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+
+  if (activeTenantId) {
+    headers.set("X-Tenant-ID", activeTenantId);
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    headers,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    const rawMessage = errorBody?.message;
+    const message = Array.isArray(rawMessage)
+      ? rawMessage.join(", ")
+      : typeof rawMessage === "string"
+        ? rawMessage
+        : `Download failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}

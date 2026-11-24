@@ -35,19 +35,54 @@ export class NotificationQueueService implements OnModuleDestroy {
     tenantId: string;
     reservationId: string;
     confirmationCode: string;
+    guestEmail?: string | null;
+    guestName: string;
+    hotelName: string;
+    branchName: string;
+    checkIn: string;
+    checkOut: string;
+    currency: string;
+    totalAmount: string;
   }) {
+    await this.add("reservation.confirmed", payload);
+  }
+
+  async enqueueInvoiceIssued(payload: {
+    tenantId: string;
+    invoiceId: string;
+    invoiceNumber: string;
+    guestEmail?: string | null;
+    guestName: string;
+    hotelName: string;
+    confirmationCode: string;
+    currency: string;
+    total: string;
+    lineItems: Array<{
+      description: string;
+      quantity: number;
+      unitPrice: string;
+      lineTotal: string;
+    }>;
+  }) {
+    await this.add("invoice.issued", payload);
+  }
+
+  private async add(
+    name: string,
+    payload: Record<string, unknown>,
+  ) {
     if (!this.queue) {
       return;
     }
 
     try {
-      await this.queue.add("reservation.confirmed", payload, {
+      await this.queue.add(name, payload, {
         removeOnComplete: 100,
         removeOnFail: 200,
       });
     } catch (error) {
       this.logger.warn(
-        `Could not enqueue reservation confirmation: ${
+        `Could not enqueue ${name}: ${
           error instanceof Error ? error.message : "unknown error"
         }`,
       );

@@ -3,8 +3,10 @@ import {
   Get,
   Param,
   Post,
+  Res,
   UseGuards,
 } from "@nestjs/common";
+import type { Response } from "express";
 
 import { CurrentTenant } from "../../common/decorators/current-tenant.decorator.js";
 import { Roles } from "../../common/decorators/roles.decorator.js";
@@ -70,6 +72,32 @@ export class InvoicesController {
     @Param("invoiceId") invoiceId: string,
   ) {
     return this.invoicesService.issue(tenantId, invoiceId);
+  }
+
+  @Get("invoices/:invoiceId/pdf")
+  @Roles(
+    "OWNER",
+    "ADMIN",
+    "HOTEL_MANAGER",
+    "RECEPTIONIST",
+    "ACCOUNTANT",
+  )
+  async downloadPdf(
+    @CurrentTenant() tenantId: string,
+    @Param("invoiceId") invoiceId: string,
+    @Res() response: Response,
+  ) {
+    const { buffer, filename } = await this.invoicesService.buildPdfBuffer(
+      tenantId,
+      invoiceId,
+    );
+
+    response.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": buffer.length,
+    });
+    response.send(buffer);
   }
 
   @Post("invoices/:invoiceId/sync-payment-status")
